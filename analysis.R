@@ -1,10 +1,14 @@
 
+library(Biobase)
 library(tidyverse)
 library(dplyr)
+library(limma)
+
 
 # PREPARE
 setwd('/media/aetius/STORE N GO/Projects/eosinophils/')
-raw_data <- read.csv(file = 'GSE62999_RAW/GSM1537865_RMA_processed_log2_Ensembl_05112020.csv')
+filename <- 'GSE62999_RAW/GSM1537865_RMA_processed_log2_Ensembl_05112020.csv'
+raw_data <- read.csv(file = filename)
 
 # TIDY
 gene_ids <- raw_data[, 1]
@@ -52,16 +56,16 @@ eo_data <- rbind(wt_mouses, ko_mouses)
 # ANALYSES
 
 # Fix t-test parameters
-confidence <- 0.99
-p_value <- 1 - confidence
-
+genes_p_values <- data.frame(gene_id = gene_ids,
+                       analysis_1 = seq(1:n_genes),
+                       analysis_2 = seq(1:n_genes),
+                       analysis_3 = seq(1:n_genes),
+                       analysis_4 = seq(1:n_genes))
 ################################################################################
 # Analysis 1
 # Legend
 # All: untreated
 # Differences: wild type vs knockout
-sig_genes <- c()
-no_sig_genes <- c()
 # Perform the tests to detect significant genes
 for (i in seq(1, n_genes)) {
   gene_data <- filter(eo_data,
@@ -69,15 +73,9 @@ for (i in seq(1, n_genes)) {
                       !treated)
   group1 <- filter(gene_data, genotype == 'WT')$intensity
   group2 <- filter(gene_data, genotype == 'KO')$intensity
-  test <- t.test(group1, group2, alt='two.sided', conf=confidence, var.eq = F, paired = F)
-  if (test$p.value <= p_value) {
-    sig_genes[i] <- gene_ids[i]
-  } else {
-    no_sig_genes[i] <- gene_ids[i]
-  }
+  test <- t.test(group1, group2, alt='two.sided', var.eq = F, paired = F)
+  genes_p_values[i, 2] <- test$p.value
 }
-unt_wtko_sig_genes <- sig_genes[!is.na(sig_genes)]
-unt_wtko_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 ################################################################################
 
 ################################################################################
@@ -85,8 +83,6 @@ unt_wtko_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 # Legend
 # All: treated
 # Differences: wild type vs knockout
-sig_genes <- c()
-no_sig_genes <- c()
 # Perform the tests to detect significant genes
 for (i in seq(1, n_genes)) {
   gene_data <- filter(eo_data,
@@ -94,15 +90,9 @@ for (i in seq(1, n_genes)) {
                       treated)
   group1 <- filter(gene_data, genotype == 'WT')$intensity
   group2 <- filter(gene_data, genotype == 'KO')$intensity
-  test <- t.test(group1, group2, alt='two.sided', conf=confidence, var.eq = F, paired = F)
-  if (test$p.value <= p_value) {
-    sig_genes[i] <- gene_ids[i]
-  } else {
-    no_sig_genes[i] <- gene_ids[i]
-  }
+  test <- t.test(group1, group2, alt='two.sided', var.eq = F, paired = F)
+  genes_p_values[i, 3] <- test$p.value
 }
-t_wtko_sig_genes <- sig_genes[!is.na(sig_genes)]
-t_wtko_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 ################################################################################
 
 ################################################################################
@@ -110,8 +100,6 @@ t_wtko_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 # Legend
 # All: wild type
 # Differences: treated vs untreated
-sig_genes <- c()
-no_sig_genes <- c()
 # Perform the tests to detect significant genes
 for (i in seq(1, n_genes)) {
   gene_data <- filter(eo_data,
@@ -119,15 +107,9 @@ for (i in seq(1, n_genes)) {
                       genotype == 'WT')
   group1 <- filter(gene_data, treated)$intensity
   group2 <- filter(gene_data, !treated)$intensity
-  test <- t.test(group1, group2, alt='two.sided', conf=confidence, var.eq = F, paired = T)
-  if (test$p.value <= p_value) {
-    sig_genes[i] <- gene_ids[i]
-  } else {
-    no_sig_genes[i] <- gene_ids[i]
-  }
+  test <- t.test(group1, group2, alt='two.sided', var.eq = F, paired = T)
+  genes_p_values[i, 4] <- test$p.value
 }
-wt_tunt_sig_genes <- sig_genes[!is.na(sig_genes)]
-wt_tunt_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 ################################################################################
 
 ################################################################################
@@ -135,8 +117,6 @@ wt_tunt_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 # Legend
 # All: knockout
 # Differences: treated vs untreated
-sig_genes <- c()
-no_sig_genes <- c()
 # Perform the tests to detect significant genes
 for (i in seq(1, n_genes)) {
   gene_data <- filter(eo_data,
@@ -144,15 +124,9 @@ for (i in seq(1, n_genes)) {
                       genotype == 'KO')
   group1 <- filter(gene_data, treated)$intensity
   group2 <- filter(gene_data, !treated)$intensity
-  test <- t.test(group1, group2, alt='two.sided', conf=confidence, var.eq = F, paired = T)
-  if (test$p.value <= p_value) {
-    sig_genes[i] <- gene_ids[i]
-  } else {
-    no_sig_genes[i] <- gene_ids[i]
-  }
+  test <- t.test(group1, group2, alt='two.sided', var.eq = F, paired = T)
+  genes_p_values[i, 5] <- test$p.value
 }
-ko_tunt_sig_genes <- sig_genes[!is.na(sig_genes)]
-ko_tunt_no_sig_genes <- no_sig_genes[!is.na(no_sig_genes)]
 ################################################################################
 
 # Create the table with the means of the intensities by gene and group
@@ -179,3 +153,27 @@ for (i in seq(1, n_genes)) {
   }
 }
 
+# Create the heatmap with the most important genes
+gene_expression_matrix <- raw_data
+colnames(gene_expression_matrix)[2:21] <- paste('Sample', seq(1:20))
+colnames(gene_expression_matrix)[1] <- 'gene_id'
+# Genotype heatmap
+# Take the n genes with the highest difference
+n <- 40
+selected <- genes_p_values[, c(1, 2, 3)] %>%
+  transmute(gene_id = gene_id, total = analysis_1 + analysis_2) 
+most_diff_genes <- selected[order(selected$total, decreasing = F), ][1:n, 1]
+genes_matrix <- gene_expression_matrix %>% filter(gene_id %in% most_diff_genes)
+genes_matrix <-as.matrix(genes_matrix[, 2:21])
+rownames(genes_matrix) <- paste('Gene', seq(1:n))
+coolmap(genes_matrix, cexRow = 1)
+# Treatment heatmap
+# Take the n genes with the highest difference
+n <- 40
+selected <- genes_p_values[, c(1, 4, 5)] %>%
+  transmute(gene_id = gene_id, total = analysis_3 + analysis_4) 
+most_diff_genes <- selected[order(selected$total, decreasing = F), ][1:n, 1]
+genes_matrix <- gene_expression_matrix %>% filter(gene_id %in% most_diff_genes)
+genes_matrix <-as.matrix(genes_matrix[, 2:21])
+rownames(genes_matrix) <- paste('Gene', seq(1:n))
+coolmap(genes_matrix, cexRow = 1)

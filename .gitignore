@@ -39,3 +39,7 @@ vignettes/*.pdf
 .Renviron
 GSE62999_RAW.tar
 GSE62999_RAW/
+analyses_performed.RData
+analyses_performed_950.RData
+analyses_performed_999.RData
+image.png
