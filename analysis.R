@@ -7,7 +7,7 @@ library(limma)
 
 # PREPARE
 setwd('/media/aetius/STORE N GO/Projects/eosinophils/')
-filename <- 'GSE62999_RAW/GSM1537865_RMA_processed_log2_Ensembl_05112020.csv'
+filename <- 'GSE62999_RAW/GSM1537865_RMA_processed_log2_Ensembl_09112020.csv'
 raw_data <- read.csv(file = filename)
 
 # TIDY
@@ -134,7 +134,7 @@ names <- c('gene_id', 'genotype', 'treated', 'avg_intensity')
 avg_intensities <- data.frame(character(), character(), logical(), double())
 colnames(avg_intensities) <- names
 
-# Obtain the average intensities for every gene
+# Obtain the average intensities for every gene and conditions
 for (i in seq(1, n_genes)) {
   gene <- gene_ids[i]
   related_rows <- eo_data %>%
@@ -153,27 +153,163 @@ for (i in seq(1, n_genes)) {
   }
 }
 
-# Create the heatmap with the most important genes
+# Calculate the differences between situations, e.g. treated-KO vs utreated-WT 
+# and so on
+confidence <- 0.95
+p_value <- 1 - confidence
+n_shown <- 20 # genes to be shown
+
+################################################################################
+# Difference 1: 
+# Compared: genotypes
+# Common: untreated
+# Analysis: 1
+analysis <- 'analysis_1'
+# Calculate the comparisons and relative values
+interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_1 <= p_value)
+non_interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_1 > p_value)
+interest_genes <- interest_genes$gene_id
+condition_intensities <- avg_intensities %>% filter(gene_id %in% interest_genes,
+                                                    !treated)
+condition_intensities$treated <- NULL
+group_1 <- condition_intensities %>% filter(genotype == 'WT')
+group_2 <- condition_intensities %>% filter(genotype == 'KO')
+compared_intensities <- data.frame(gene = unique(condition_intensities$gene_id),
+                                   comparison = group_1$avg_intensity / group_2$avg_intensity)
+compared_intensities$log_comparison <- log(compared_intensities$comparison)
+compared_intensities$squared_log_comparison <- compared_intensities$log_comparison ** 2 
+compared_intensities <- compared_intensities[order(compared_intensities$squared_log_comparison,
+                                                   decreasing = T), ]
+compared_intensities <- head(compared_intensities, n_shown + 1)
+compared_intensities$relative <- compared_intensities$comparison / max(compared_intensities$comparison)
+compared_intensities$relative <- 100 * compared_intensities$relative
+compared_intensities <- compared_intensities[order(compared_intensities$relative, decreasing = T), ]
+compared_intensities$expression <- sign(compared_intensities$log_comparison) * compared_intensities$relative
+diff_1_genes <- compared_intensities$gene
+# Plot the differences
+ggplot(data = compared_intensities[2:21, ],
+       mapping = aes(x = reorder(gene, -relative), y = expression, fill = relative)) + 
+  geom_bar(stat = 'identity') + coord_cartesian(ylim = c(-75, 75)) +
+  ylab('Relative expression') + xlab('Genes') + labs(fill = "Fraction (Dusp5)")
+################################################################################
+
+################################################################################
+# Difference 2: 
+# Compared: genotypes
+# Common: treated
+# Analysis: 2
+analysis <- 'analysis_2'
+# Calculate the comparisons and relative values
+interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_2 <= p_value)
+non_interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_2 > p_value)
+interest_genes <- interest_genes$gene_id
+condition_intensities <- avg_intensities %>% filter(gene_id %in% interest_genes,
+                                                    treated)
+condition_intensities$treated <- NULL
+group_1 <- condition_intensities %>% filter(genotype == 'WT')
+group_2 <- condition_intensities %>% filter(genotype == 'KO')
+compared_intensities <- data.frame(gene = unique(condition_intensities$gene_id),
+                                   comparison = group_1$avg_intensity / group_2$avg_intensity)
+compared_intensities$log_comparison <- log(compared_intensities$comparison)
+compared_intensities$squared_log_comparison <- compared_intensities$log_comparison ** 2 
+compared_intensities <- compared_intensities[order(compared_intensities$squared_log_comparison,
+                                                   decreasing = T), ]
+compared_intensities <- head(compared_intensities, n_shown + 1)
+compared_intensities$relative <- compared_intensities$comparison / max(compared_intensities$comparison)
+compared_intensities$relative <- 100 * compared_intensities$relative
+compared_intensities <- compared_intensities[order(compared_intensities$relative, decreasing = T), ]
+compared_intensities$expression <- sign(compared_intensities$log_comparison) * compared_intensities$relative
+diff_2_genes <- compared_intensities$gene
+# Plot the differences
+ggplot(data = compared_intensities[2:21, ],
+       mapping = aes(x = reorder(gene, -relative), y = expression, fill = relative)) + 
+  geom_bar(stat = 'identity') + coord_cartesian(ylim = c(-75, 75)) +
+  ylab('Relative expression') + xlab('Genes') + labs(fill = "Fraction (Dusp5)")
+################################################################################
+
+################################################################################
+# Difference 3: 
+# Compared: treatments
+# Common: wild type
+# Analysis: 3
+analysis <- 'analysis_3'
+# Calculate the comparisons and relative values
+interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_3 <= p_value)
+non_interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_3 > p_value)
+interest_genes <- interest_genes$gene_id
+condition_intensities <- avg_intensities %>% filter(gene_id %in% interest_genes,
+                                                    genotype == 'WT')
+condition_intensities$genotype <- NULL
+group_1 <- condition_intensities %>% filter(treated)
+group_2 <- condition_intensities %>% filter(!treated)
+compared_intensities <- data.frame(gene = unique(condition_intensities$gene_id),
+                                   comparison = group_1$avg_intensity / group_2$avg_intensity)
+compared_intensities$log_comparison <- log(compared_intensities$comparison)
+compared_intensities$squared_log_comparison <- compared_intensities$log_comparison ** 2 
+compared_intensities <- compared_intensities[order(compared_intensities$squared_log_comparison,
+                                                   decreasing = T), ]
+compared_intensities <- head(compared_intensities, n_shown + 1)
+compared_intensities$relative <- compared_intensities$comparison / max(compared_intensities$comparison)
+compared_intensities$relative <- 100 * compared_intensities$relative
+compared_intensities <- compared_intensities[order(compared_intensities$relative, decreasing = T), ]
+compared_intensities$expression <- sign(compared_intensities$log_comparison) * compared_intensities$relative
+diff_3_genes <- compared_intensities$gene
+# Plot the differences
+ggplot(data = compared_intensities[1:21, ],
+       mapping = aes(x = reorder(gene, -relative), y = expression, fill = relative)) + 
+  geom_bar(stat = 'identity') + coord_cartesian(ylim = c(0, 105)) +
+  ylab('Relative expression') + xlab('Genes') + labs(fill = "Fraction (Ptgs2)")
+################################################################################
+
+################################################################################
+# Difference 4: 
+# Compared: treatments
+# Common: wild type
+# Analysis: 4
+analysis <- 'analysis_4'
+# Calculate the comparisons and relative values
+interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_4 <= p_value)
+non_interest_genes <- genes_p_values[, c('gene_id', analysis)] %>%
+  filter(analysis_4 > p_value)
+interest_genes <- interest_genes$gene_id
+condition_intensities <- avg_intensities %>% filter(gene_id %in% interest_genes,
+                                                    genotype == 'KO')
+condition_intensities$genotype <- NULL
+group_1 <- condition_intensities %>% filter(treated)
+group_2 <- condition_intensities %>% filter(!treated)
+compared_intensities <- data.frame(gene = unique(condition_intensities$gene_id),
+                                   comparison = group_1$avg_intensity / group_2$avg_intensity)
+compared_intensities$log_comparison <- log(compared_intensities$comparison)
+compared_intensities$squared_log_comparison <- compared_intensities$log_comparison ** 2 
+compared_intensities <- compared_intensities[order(compared_intensities$squared_log_comparison,
+                                                   decreasing = T), ]
+compared_intensities <- head(compared_intensities, n_shown + 1)
+compared_intensities$relative <- compared_intensities$comparison / max(compared_intensities$comparison)
+compared_intensities$relative <- 100 * compared_intensities$relative
+compared_intensities <- compared_intensities[order(compared_intensities$relative, decreasing = T), ]
+compared_intensities$expression <- sign(compared_intensities$log_comparison) * compared_intensities$relative
+diff_4_genes <- compared_intensities$gene
+# Plot the differences
+ggplot(data = compared_intensities[1:21, ],
+       mapping = aes(x = reorder(gene, -relative), y = expression, fill = relative)) + 
+  geom_bar(stat = 'identity') + coord_cartesian(ylim = c(0, 105)) +
+  ylab('Relative expression') + xlab('Genes') + labs(fill = "Fraction (Ptgs2)")
+################################################################################
+
+# Prepare data of the genes with the biggest differences
+diff_genes <- unique(c(diff_1_genes, diff_2_genes, diff_3_genes, diff_4_genes))
 gene_expression_matrix <- raw_data
 colnames(gene_expression_matrix)[2:21] <- paste('Sample', seq(1:20))
 colnames(gene_expression_matrix)[1] <- 'gene_id'
-# Genotype heatmap
-# Take the n genes with the highest difference
-n <- 40
-selected <- genes_p_values[, c(1, 2, 3)] %>%
-  transmute(gene_id = gene_id, total = analysis_1 + analysis_2) 
-most_diff_genes <- selected[order(selected$total, decreasing = F), ][1:n, 1]
-genes_matrix <- gene_expression_matrix %>% filter(gene_id %in% most_diff_genes)
+# Build the heatmap
+genes_matrix <- gene_expression_matrix %>% filter(gene_id %in% diff_genes)
 genes_matrix <-as.matrix(genes_matrix[, 2:21])
-rownames(genes_matrix) <- paste('Gene', seq(1:n))
-coolmap(genes_matrix, cexRow = 1)
-# Treatment heatmap
-# Take the n genes with the highest difference
-n <- 40
-selected <- genes_p_values[, c(1, 4, 5)] %>%
-  transmute(gene_id = gene_id, total = analysis_3 + analysis_4) 
-most_diff_genes <- selected[order(selected$total, decreasing = F), ][1:n, 1]
-genes_matrix <- gene_expression_matrix %>% filter(gene_id %in% most_diff_genes)
-genes_matrix <-as.matrix(genes_matrix[, 2:21])
-rownames(genes_matrix) <- paste('Gene', seq(1:n))
-coolmap(genes_matrix, cexRow = 1)
+rownames(genes_matrix) <- diff_genes
+coolmap(genes_matrix, cexRow = 0.6)

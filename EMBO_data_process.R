@@ -4,7 +4,10 @@ library(data.table)
 library(arrayQualityMetrics)
 library(biomaRt)
 
-setwd('/home/aetius/Projects/eosinophils/GSE62999_RAW/')  # set your working directory
+# NOTES:
+# The original script has been modified to work with gene names
+
+setwd('/media/aetius/STORE N GO/Projects/eosinophils//GSE62999_RAW/')  # set your working directory
 cel_files = list.files(path = getwd(), pattern = '*.CEL.gz', full.names = TRUE)
  
 # Parse the CEL files and run QC
@@ -27,7 +30,7 @@ parsed_cels_rma = oligo::rma(parsed_cels, normalize = TRUE, background = TRUE)
 # biomaRt, a very helpful package for bioinformatics.
 mart = useEnsembl(biomart='ensembl', dataset='mmusculus_gene_ensembl')  # set up connection to the Ensembl Mouse database
 mouse_probes = row.names(parsed_cels_rma@assayData$exprs)
-id_translation_table = getBM(attributes = c('affy_mouse430_2', 'ensembl_gene_id'),
+id_translation_table = getBM(attributes = c('affy_mouse430_2', 'external_gene_name'),
                              filters = 'affy_mouse430_2',
                              values = mouse_probes,
                              mart=mart)  # might take a while
@@ -35,7 +38,7 @@ id_translation_table = getBM(attributes = c('affy_mouse430_2', 'ensembl_gene_id'
 # Now add the Ensembl gene IDs
 expression_data = parsed_cels_rma@assayData$exprs  # the intensity data is log2-normalised by the 'rma' function already
 expression_data = as.data.frame(expression_data)
-expression_data$Ensembl = id_translation_table$ensembl_gene_id[match(row.names(expression_data), id_translation_table$affy_mouse430_2)]
+expression_data$Ensembl = id_translation_table$external_gene_name[match(row.names(expression_data), id_translation_table$affy_mouse430_2)]
 
 # Turn into a faster data.table object
 expression_data_dt = as.data.table(expression_data)
@@ -56,6 +59,6 @@ colnames(expression_data_dt_agg) = gsub('_Mouse430v2.CEL.gz', '', colnames(expre
 expression_data_dt_agg[,2:21] = round(expression_data_dt_agg[,2:21], 3)
 
 # We're done! Write the data file to disk
-write.csv(expression_data_dt_agg, './GSM1537865_RMA_processed_log2_Ensembl_05112020.csv', quote=F, row.names = F)  
+write.csv(expression_data_dt_agg, './GSM1537865_RMA_processed_log2_Ensembl_09112020.csv', quote=F, row.names = F)  
 # I like to keep the date of data export in the file name and sometimes a database ID (GSM...) to be able to quickly
 # find sources in few years, but feel free to come up with your own system
