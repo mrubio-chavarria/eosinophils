@@ -7,7 +7,7 @@ library(biomaRt)
 # NOTES:
 # The original script has been modified to work with gene names
 
-setwd('/media/aetius/STORE N GO/Projects/eosinophils//GSE62999_RAW/')  # set your working directory
+setwd('/media/mario/E788-1B77/Projects/eosinophils/GSE62999_RAW/')  # set your working directory
 cel_files = list.files(path = getwd(), pattern = '*.CEL.gz', full.names = TRUE)
  
 # Parse the CEL files and run QC
