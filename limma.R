@@ -1,14 +1,18 @@
+
 library(limma)
 library(ggplot2)
 library(biomaRt)
-setwd('~/00_current_projects/Bone_marrow_Mario_ICL/Intro_work_eosinophiles/')
+library(dplyr)
+library(gridExtra)
+
+setwd('/media/mario/E788-1B77/Projects/eosinophils')
 
 # Load our processed microarray data
-expression_data = read.csv('GSM1537865_RMA_processed_log2_Ensembl_05112020.csv', row.names=1)
-# simplify names of samples
-colnames(expression_data) = gsub('(GSM[0-9]+_MA[0-9]+).*', '\\1', colnames(expression_data))
+expression_data = read.csv('GSM1537865_RMA_processed_log2_Ensembl_09112020.csv', row.names=1)
+# Simplify names of samples
+colnames(expression_data) <- gsub('(GSM[0-9]+_MA[0-9]+).*', '\\1', colnames(expression_data))
 
-# load metadata (downloaded from an alternative source: https://www.ebi.ac.uk/arrayexpress/experiments/E-GEOD-62999/)
+# Load metadata (downloaded from an alternative source: https://www.ebi.ac.uk/arrayexpress/experiments/E-GEOD-62999/)
 metadata = read.table('E-GEOD-62999.sdrf.txt', sep = '\t', header=T)
 # make short sample names for matching to expression
 metadata$Simple_names = gsub('(GSM[0-9]+_MA[0-9]+).*', '\\1', metadata$Array.Data.File)
@@ -20,7 +24,7 @@ colnames(metadata) = c('Sample_name', 'DUSP5_Genotype', 'IL33_Treatment')
 metadata$DUSP5_Genotype = sapply(strsplit(metadata$DUSP5_Genotype, ' '), '[', 1)
 metadata$IL33_Treatment[metadata$IL33_Treatment == 'IL-33'] = 'Treated'
 
-# change to factors
+# Change to factors
 metadata$DUSP5_Genotype = factor(metadata$DUSP5_Genotype, levels=c('WT', 'KO'))  # this sets up BASELINE as WT (will be intercept)
 metadata$IL33_Treatment = factor(metadata$IL33_Treatment, levels=c('Untreated', 'Treated'))  # this sets up BASELINE as UNTREATED (will be intercept)
 
@@ -56,7 +60,7 @@ translation = getBM(attributes = c('ensembl_gene_id', 'mgi_symbol', 'description
                     mart = mart)
 translation = translation[!duplicated(translation$ensembl_gene_id),]  # sometimes IDs map to more genes, we can skip it now
 
-# add the descriptions and names to results
+# Add the descriptions and names to results
 KO_results = merge(translation, KO_results, by='ensembl_gene_id')
 KO_results = KO_results[order(KO_results$adj.P.Val),]
 
@@ -66,10 +70,10 @@ treatment_results = treatment_results[order(treatment_results$adj.P.Val),]
 interaction_results = merge(translation, interaction_results, by='ensembl_gene_id')
 interaction_results = interaction_results[order(interaction_results$adj.P.Val),]
 
-# plot selected results and double-check if the values make sense
+# Plot selected results and double-check if the values make sense
 plot_gene = function(ensembl_id){
   
-  # extract and annotate
+  # Extract and annotate
   expression_gene = expression_data[row.names(expression_data) == ensembl_id,]
   expression_gene = data.frame(t(expression_gene))
   colnames(expression_gene) = 'Log2_gene_expression'
@@ -87,7 +91,7 @@ plot_gene = function(ensembl_id){
 }
 
 # Plot the top gene from KO - DUSP5 should have very low signal (background mostly)
-plot_gene(KO_results$ensembl_gene_id[1])
+plot_gene(KO_results$ensembl_gene_id[3])
 
 # Plot the top gene affected by IL-33 treatment
 plot_gene(treatment_results$ensembl_gene_id[1])
@@ -101,12 +105,83 @@ plot_gene(interaction_results$ensembl_gene_id[1])
 # The X-axis is Log2FC and the Y-axis is -log10(p.adjusted)
 # Each dot is one gene (you should use the topTable results for this)
 # You can highlight with color genes that are significant, e.g. p.adj < 0.1 and abs(log2FC) > 0.5
-plot_volcano = function(){
-  ## write your code
+plot_volcano = function(fit, coef){
+  ## Write your code
+  results = topTable(fit, number = Inf, coef = coef, sort.by = 'p')
+  results$ensembl_gene_id = row.names(results)
+  results = merge(translation, results, by='ensembl_gene_id')
+  results = results[order(results$P.Value),]
+  relevant.b <- results[order(results$B),][1:20, ]  %>%
+    select(mgi_symbol, logFC, B) %>% mutate(mlog10B = -log(abs(B), 10))
+  results <- results %>% select(mgi_symbol, logFC, P.Value, B) %>% 
+    mutate(adj.P.Val = p.adjust(P.Value, method = 'BH')) %>%
+    mutate(mlog10P = -log(P.Value, 10),
+           mlog10AdjP = -log(adj.P.Val, 10),
+           mlog10B = -log(abs(B), 10))
+  # Correction for Dusp5. In this case this point does not provide any 
+  # information and it deforms the whole chart.
+  if (coef == 2) {
+    results <- results %>% filter(mgi_symbol != 'Dusp5')
+  }
+  # Take the relevant genes
+  relevant.p.value <- results[1:20, ] %>% filter(P.Value <= 0.01) 
+  relevant.adj.p.value <- results[1:20, ] %>% filter(adj.P.Val <= 0.01)
+  base <- ggplot(data = results)
+  fig_p <- base +
+    geom_point(size = 0.1, aes(x = logFC, y = mlog10P, colour = mlog10P >= 2)) +
+    geom_text(data = relevant.p.value, size = 2, aes(x = logFC, y = mlog10P, label=mgi_symbol), hjust=0, vjust=0) +
+    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(P-value)', sep = ' ')) +
+    xlab('Log2 Fold Change') + ylab('-Log10(P-value)') + labs(colour = 'P-value')
+  fig_adj_p <- base +
+    geom_point(size = 0.1, aes(x = logFC, y = mlog10AdjP, colour = mlog10AdjP >= 2)) +
+    geom_text(data = relevant.adj.p.value, size = 2, aes(x = logFC, y = mlog10AdjP, label=mgi_symbol), hjust=0, vjust=0) +
+    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(Adjusted P-value)', sep = ' ')) +
+    xlab('Log2 Fold Change') + ylab('-Log10(Adjusted P-value)') + labs(colour = 'Adjusted P-value')
+  fig_b <- base +
+    geom_point(size = 0.1, aes(x = logFC, y = mlog10B)) +
+    geom_text(data = relevant.b, size = 2, aes(x = logFC, y = mlog10B, label=mgi_symbol), hjust=0, vjust=0) +
+    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(abs(B))', sep = ' ')) +
+    xlab('Log2 Fold Change') + ylab('-Log10(abs(B))')
+  grid.arrange(fig_p, fig_adj_p, fig_b, nrow = 3)
 }
 
+fit <- limma_fit
 
+# Plot the most altered genes by the Dusp5 KO
+coef <- 2
+plot_volcano(fit, coef)
 
+# Plot the most altered genes by the IL-33 treatment
+coef <- 3
+plot_volcano(fit, coef)
 
+# Plot the most altered genes by the interaction between treatment and genotype
+coef <- 4
+plot_volcano(fit, coef)
 
-
+# # The following charts but made with the limma library, to compare. 
+# coef <- 2
+# # Be noticed that here, because it has not been eliminated, the outstanding 
+# # point corresponds to the Dusp5 gene. 
+# volcanoplot(fit, coef = coef, style = 'p-value', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)
+# volcanoplot(fit, coef = coef, style = 'B-statistic', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)
+# 
+# coef <- 3
+# volcanoplot(fit, coef = coef, style = 'p-value', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)
+# volcanoplot(fit, coef = coef, style = 'B-statistic', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)
+# 
+# coef <- 4
+# volcanoplot(fit, coef = coef, style = 'p-value', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)
+# volcanoplot(fit, coef = coef, style = 'B-statistic', highlight = 0, 
+#             names = fit$genes$ID, hl.col='blue', 
+#             xlab = 'Log2 Fold Change', ylab = NULL, pch=16, cex=0.35)

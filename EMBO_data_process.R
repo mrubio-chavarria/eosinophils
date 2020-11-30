@@ -30,7 +30,7 @@ parsed_cels_rma = oligo::rma(parsed_cels, normalize = TRUE, background = TRUE)
 # biomaRt, a very helpful package for bioinformatics.
 mart = useEnsembl(biomart='ensembl', dataset='mmusculus_gene_ensembl')  # set up connection to the Ensembl Mouse database
 mouse_probes = row.names(parsed_cels_rma@assayData$exprs)
-id_translation_table = getBM(attributes = c('affy_mouse430_2', 'external_gene_name'),
+id_translation_table = getBM(attributes = c('affy_mouse430_2', 'ensembl_gene_id'),
                              filters = 'affy_mouse430_2',
                              values = mouse_probes,
                              mart=mart)  # might take a while
@@ -38,7 +38,7 @@ id_translation_table = getBM(attributes = c('affy_mouse430_2', 'external_gene_na
 # Now add the Ensembl gene IDs
 expression_data = parsed_cels_rma@assayData$exprs  # the intensity data is log2-normalised by the 'rma' function already
 expression_data = as.data.frame(expression_data)
-expression_data$Ensembl = id_translation_table$external_gene_name[match(row.names(expression_data), id_translation_table$affy_mouse430_2)]
+expression_data$Ensembl = id_translation_table$ensembl_gene_id[match(row.names(expression_data), id_translation_table$affy_mouse430_2)]
 
 # Turn into a faster data.table object
 expression_data_dt = as.data.table(expression_data)
