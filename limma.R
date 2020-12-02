@@ -5,7 +5,7 @@ library(biomaRt)
 library(dplyr)
 library(gridExtra)
 
-setwd('/media/mario/E788-1B77/Projects/eosinophils')
+setwd('/media/mario/2860-9FFC/Projects/eosinophils')
 
 # Load our processed microarray data
 expression_data = read.csv('GSM1537865_RMA_processed_log2_Ensembl_09112020.csv', row.names=1)
@@ -123,26 +123,29 @@ plot_volcano = function(fit, coef){
   if (coef == 2) {
     results <- results %>% filter(mgi_symbol != 'Dusp5')
   }
+  
   # Take the relevant genes
-  relevant.p.value <- results[1:20, ] %>% filter(P.Value <= 0.01) 
-  relevant.adj.p.value <- results[1:20, ] %>% filter(adj.P.Val <= 0.01)
-  base <- ggplot(data = results)
-  fig_p <- base +
-    geom_point(size = 0.1, aes(x = logFC, y = mlog10P, colour = mlog10P >= 2)) +
-    geom_text(data = relevant.p.value, size = 2, aes(x = logFC, y = mlog10P, label=mgi_symbol), hjust=0, vjust=0) +
-    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(P-value)', sep = ' ')) +
-    xlab('Log2 Fold Change') + ylab('-Log10(P-value)') + labs(colour = 'P-value')
-  fig_adj_p <- base +
-    geom_point(size = 0.1, aes(x = logFC, y = mlog10AdjP, colour = mlog10AdjP >= 2)) +
-    geom_text(data = relevant.adj.p.value, size = 2, aes(x = logFC, y = mlog10AdjP, label=mgi_symbol), hjust=0, vjust=0) +
-    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(Adjusted P-value)', sep = ' ')) +
-    xlab('Log2 Fold Change') + ylab('-Log10(Adjusted P-value)') + labs(colour = 'Adjusted P-value')
-  fig_b <- base +
-    geom_point(size = 0.1, aes(x = logFC, y = mlog10B)) +
-    geom_text(data = relevant.b, size = 2, aes(x = logFC, y = mlog10B, label=mgi_symbol), hjust=0, vjust=0) +
-    ggtitle(paste(paste('Plot of coefficient ', coef, sep= ''), '(abs(B))', sep = ' ')) +
-    xlab('Log2 Fold Change') + ylab('-Log10(abs(B))')
-  grid.arrange(fig_p, fig_adj_p, fig_b, nrow = 3)
+  # This varies depending on the coefficient because the efect of the treatment
+  # is much bigger compared to the other two
+  if (coef == 2) {
+    # Criterion:  adjusted p.val < 0.1 and abs(log2FC) > 0.8
+    relevants <- results[1:20, ] %>% filter(adj.P.Val < 0.1, abs(logFC) > 0.75)
+    title <- 'Effec of the Dusp5 knockout'
+  } else if (coef == 3) {
+    # Criterion:  adjusted p.val < 0.1 and abs(log2FC) > 1
+    relevants <- results[1:20, ] %>% filter(adj.P.Val < 0.1, abs(logFC) > 1) 
+    title <- 'Effec of the IL-33 treatment'
+    } else {
+    # Criterion:  p.value < 0.01 and abs(log2FC) > 0.8
+    title <- 'Effect of the knockout-treatment interaction'
+    relevants <- results[1:20, ] %>% filter(P.Value < 0.01, abs(logFC) > 0.75) 
+  }
+  picture <- ggplot(data = results) +
+    geom_point(size = 0.1, aes(x = logFC, y = mlog10P, colour = mlog10P >= 1)) +
+    geom_text(data = relevants, size = 2, aes(x = logFC, y = mlog10P, label=mgi_symbol), hjust=0, vjust=0) +
+    ggtitle(title) + xlab('Log2 Fold Change') + ylab('-Log10(P-value)') +
+    labs(colour = 'P-value < 0.1')
+  return(picture)
 }
 
 fit <- limma_fit
