@@ -171,8 +171,16 @@ interaction_relevant_genes <- plot_volcano(fit, coef)
 
 # They are saved only the data from the treatment-related genes
 filename <- "selected_genes.txt"
-write.table(treatment_relevant_genes, filename, append = FALSE, sep = " ",
-            dec = ".", row.names = FALSE, col.names = c("ensembl_id", "p_value", "adjusted_p_value", "logFC"))
+
+final_data <- merge(x = treatment_relevant_genes, y = translation, by.x = "ensembl_gene_id", by.y = "ensembl_gene_id")
+final_data$description <- NULL
+
+write.table(final_data, filename, append = FALSE, sep = "\t")
+
+final_sigf <- final_data[final_data$adj.P.Val < 0.1, ]$entrezgene_id
+final_sigf <- final_sigf[!(is.na(final_sigf) | final_sigf=="")]
+result <- goana(final_sigf, species = "Mm")
+result_sigf <- result[result$P.DE < 0.01, ]
 
 # # The following charts but made with the limma library, to compare. 
 # coef <- 2
