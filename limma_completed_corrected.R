@@ -86,8 +86,8 @@ plot_gene = function(ensembl_id){
   gene_MGI_name = translation$mgi_symbol[translation$ensembl_gene_id == ensembl_id]
   
   # plot
-  ggplot(expression_gene) + geom_point(aes(x=Group, y=Log2_gene_expression, color=Group)) +
-    ggtitle(paste('Gene expression values for gene: ', gene_MGI_name, sep=''))
+  # ggplot(expression_gene) + geom_point(aes(x=Group, y=Log2_gene_expression, color=Group)) +
+  #   ggtitle(paste('Gene expression values for gene: ', gene_MGI_name, sep=''))
   
 }
 
@@ -130,27 +130,29 @@ plot_volcano = function(fit, coef){
   # is much bigger compared to the other two
   # Criterion:  adjusted p.val < 0.1 and abs(log2FC) > 1
   if (coef == 2) {
-    relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1.5)
+    # relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1)
     title <- 'Effect of the Dusp5 knockout'
   } else if (coef == 3) {
-    relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1.5) 
+    # relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1) 
     title <- 'Effect of the IL-33 treatment'
     } else {
     title <- 'Effect of the knockout-treatment interaction'
-    relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1.5) 
-  }
-  picture <- ggplot(data = results) +
-    geom_point(size = 0.1, aes(x = logFC, y = mlog10P, colour = adj.P.Val < 0.1)) +
-    geom_text_repel(data = relevants,
-                    size = 2,
-                    point.padding = NA,
-                    segment.alpha = 0.1,
-                    segment.size = 0.1,
-                    arrow = arrow(length = unit(0.01, "inches"), type = "closed", ends = "first"),
-                    aes(x = logFC, y = mlog10P, label=mgi_symbol), hjust=0.5, vjust=0) +
-    ggtitle(title) + xlab('Log2 Fold Change') + ylab('-Log10(P-value)') +
-    labs(colour = 'Adjusted P-value < 0.1')
-  print(picture)
+    # relevants <- results %>% filter(adj.P.Val < 0.1, abs(logFC) > 1) 
+    }
+  # Temporary modification for the preranked GSEA
+  relevants <- results
+  # picture <- ggplot(data = results) +
+  #   geom_point(size = 0.1, aes(x = logFC, y = mlog10P, colour = adj.P.Val < 0.1)) +
+  #   geom_text_repel(data = relevants,
+  #                   size = 2,
+  #                   point.padding = NA,
+  #                   segment.alpha = 0.1,
+  #                   segment.size = 0.1,
+  #                   arrow = arrow(length = unit(0.01, "inches"), type = "closed", ends = "first"),
+  #                   aes(x = logFC, y = mlog10P, label=mgi_symbol), hjust=0.5, vjust=0) +
+  #   ggtitle(title) + xlab('Log2 Fold Change') + ylab('-Log10(P-value)') +
+  #   labs(colour = 'Adjusted P-value < 0.1')
+  # print(picture)
   relevants <- relevants[c("ensembl_gene_id", "P.Value", "adj.P.Val", "logFC")]
   return(relevants)
 }
@@ -177,10 +179,11 @@ final_data$description <- NULL
 
 write.table(final_data, filename, append = FALSE, sep = "\t")
 
-final_sigf <- final_data[final_data$adj.P.Val < 0.1, ]$entrezgene_id
-final_sigf <- final_sigf[!(is.na(final_sigf) | final_sigf=="")]
-result <- goana(final_sigf, species = "Mm")
-result_sigf <- result[result$P.DE < 0.01, ]
+# # NOTES WITH PIOTR
+# final_sigf <- final_data[final_data$adj.P.Val < 0.1, ]$entrezgene_id
+# final_sigf <- final_sigf[!(is.na(final_sigf) | final_sigf=="")]
+# result <- goana(final_sigf, species = "Mm")
+# result_sigf <- result[result$P.DE < 0.01, ]
 
 # # The following charts but made with the limma library, to compare. 
 # coef <- 2

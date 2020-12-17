@@ -26,22 +26,23 @@ genes <- read.table(filename, header = TRUE)
 genes$p_value <- NULL
 
 # Obtain GO terms
-bm <- useMart("ensembl")
-bm <- useDataset("mmusculus_gene_ensembl", mart=bm)
+# bm <- useMart("ensembl")
+# bm <- useDataset("mmusculus_gene_ensembl", mart=bm)
 gene2GO <- getBM(mart=bm, attributes=c('ensembl_gene_id', 'go_id', 'external_gene_name'))
-genes <- merge(x = genes, y = gene2GO, by.x = "ensembl_id", by.y = "ensembl_gene_id")
-genes <- genes[order(genes$adjusted_p_value), ]
+genes <- merge(x = genes, y = gene2GO, by.x = "ensembl_gene_id", by.y = "ensembl_gene_id")
+genes <- genes[order(genes$adj.P.Val), ]
 # Be noticed that some genes are to be discarded because they do not have GO term
 genes_go <- genes[!(is.na(genes$go_id) | genes$go_id==""), ]
 print(paste("Entries lost: ", nrow(genes) - nrow(genes_go)))
-genes.names <- genes_go$ensembl_id
+genes.names <- genes_go$ensembl_gene_id
 gene2GO <- sapply(genes_go[, 4], c)
 names(gene2GO) <- genes.names
 
 # Adapt data to the format 
-genes.names <- genes$ensembl_id
-genes.ids <- as.vector(genes$adjusted_p_value)
+genes.names <- genes$ensembl_gene_id
+genes.ids <- as.vector(genes$adj.P.Val)
 names(genes.ids) <- genes.names
+gene2GO <- annFUN.gene2GO(whichOnto = "MF", gene2GO = gene2GO)
 
 sampleGOdata <- new("topGOdata",
                     description = "Ensembl GO enrichment", ontology = "BP",
